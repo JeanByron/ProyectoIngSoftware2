@@ -1,0 +1,1054 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Reportes API - AgroInsumos Cafeteros",
+    "version": "1.0.0",
+    "description": "Dashboard, reportes y alertas de vencimiento (RF13 vencimiento, RF14; E-RF11, E-RF14).\nStack: Django + MongoDB (django-mongodb-backend).\n- Cada 5 min consulta Catálogo, Inventario y Compras con ?updatedSince= (solo cambios)\n  y guarda una copia desnormalizada de solo lectura. No está en ninguna ruta crítica.\n- Toda respuesta incluye lastSyncAt por fuente para que la interfaz muestre el desfase.\n- Si una fuente no responde se conservan los últimos datos (stale=true en esa fuente).\n- Solo lectura: no hay POST de negocio salvo forzar sincronización (ADMIN).\n"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000/api/v1",
+      "description": "A través del API Gateway"
+    },
+    {
+      "url": "http://localhost:8005/api/v1",
+      "description": "Directo al servicio (solo desarrollo local)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Dashboard"
+    },
+    {
+      "name": "Reportes"
+    },
+    {
+      "name": "Alertas"
+    },
+    {
+      "name": "Sincronización"
+    },
+    {
+      "name": "Sistema"
+    }
+  ],
+  "paths": {
+    "/dashboard": {
+      "get": {
+        "tags": [
+          "Dashboard"
+        ],
+        "summary": "Indicadores clave consolidados",
+        "description": "Valor total, quiebres de stock, alertas activas (bajo stock + vencimiento), OC pendientes, rotación.",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS",
+          "JEFE_BODEGA",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WarehouseFilter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dashboard"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reports/stock": {
+      "get": {
+        "tags": [
+          "Reportes"
+        ],
+        "summary": "Existencias consolidadas por producto y bodega",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS",
+          "JEFE_BODEGA",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WarehouseFilter"
+          },
+          {
+            "name": "categoryId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Format"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockReport"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reports/movements": {
+      "get": {
+        "tags": [
+          "Reportes"
+        ],
+        "summary": "Movimientos por período",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_BODEGA",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/From"
+          },
+          {
+            "$ref": "#/components/parameters/To"
+          },
+          {
+            "$ref": "#/components/parameters/WarehouseFilter"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Format"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovementsReport"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reports/expiring-lots": {
+      "get": {
+        "tags": [
+          "Reportes"
+        ],
+        "summary": "Lotes por vencer",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "JEFE_BODEGA",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "Horizonte en días",
+            "schema": {
+              "type": "integer",
+              "default": 60
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WarehouseFilter"
+          },
+          {
+            "$ref": "#/components/parameters/Format"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpiringLotsReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reports/pending-orders": {
+      "get": {
+        "tags": [
+          "Reportes"
+        ],
+        "summary": "Órdenes de compra pendientes, parciales y atrasadas, con cumplimiento por proveedor",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "name": "supplierId",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Format"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingOrdersReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reports/returns": {
+      "get": {
+        "tags": [
+          "Reportes"
+        ],
+        "summary": "Devoluciones de cliente y a proveedor por período",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/From"
+          },
+          {
+            "$ref": "#/components/parameters/To"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CLIENTE",
+                "PROVEEDOR"
+              ]
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Format"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReturnsReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reports/valuation": {
+      "get": {
+        "tags": [
+          "Reportes"
+        ],
+        "summary": "Valorización del inventario (cantidad × precio de referencia)",
+        "x-roles": [
+          "GERENTE",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WarehouseFilter"
+          },
+          {
+            "name": "groupBy",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "WAREHOUSE",
+                "CATEGORY"
+              ],
+              "default": "WAREHOUSE"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Format"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValuationReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/reports/rotation": {
+      "get": {
+        "tags": [
+          "Reportes"
+        ],
+        "summary": "Productos de mayor y menor rotación",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/From"
+          },
+          {
+            "$ref": "#/components/parameters/To"
+          },
+          {
+            "$ref": "#/components/parameters/WarehouseFilter"
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "HIGH",
+                "LOW"
+              ],
+              "default": "HIGH"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Format"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RotationReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/alerts/expiry": {
+      "get": {
+        "tags": [
+          "Alertas"
+        ],
+        "summary": "Alertas de lotes próximos a vencer por bodega",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "JEFE_BODEGA",
+          "BODEGUERO"
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 30
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WarehouseFilter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpiryAlerts"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sync/status": {
+      "get": {
+        "tags": [
+          "Sincronización"
+        ],
+        "summary": "Estado del sondeo por fuente",
+        "x-roles": [
+          "ADMIN",
+          "GERENTE"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SyncSource"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sync/run": {
+      "post": {
+        "tags": [
+          "Sincronización"
+        ],
+        "summary": "Forzar sincronización inmediata",
+        "x-roles": [
+          "ADMIN"
+        ],
+        "responses": {
+          "202": {
+            "description": "Sincronización encolada"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Sistema"
+        ],
+        "summary": "Health check",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "UP",
+                        "DOWN"
+                      ]
+                    },
+                    "service": {
+                      "type": "string"
+                    },
+                    "db": {
+                      "type": "string",
+                      "enum": [
+                        "UP",
+                        "DOWN"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        }
+      },
+      "Size": {
+        "name": "size",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      },
+      "WarehouseFilter": {
+        "name": "warehouseId",
+        "in": "query",
+        "description": "Limitado por X-User-Warehouses",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "From": {
+        "name": "from",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "To": {
+        "name": "to",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "Format": {
+        "name": "format",
+        "in": "query",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "json",
+            "csv"
+          ],
+          "default": "json"
+        }
+      }
+    },
+    "schemas": {
+      "SyncSource": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "catalogo",
+              "inventario",
+              "compras"
+            ]
+          },
+          "lastSyncAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "stale": {
+            "type": "boolean",
+            "description": "true si el último sondeo falló"
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Freshness": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncSource"
+            }
+          }
+        }
+      },
+      "Dashboard": {
+        "type": "object",
+        "properties": {
+          "freshness": {
+            "$ref": "#/components/schemas/Freshness"
+          },
+          "totalInventoryValue": {
+            "type": "number",
+            "example": 1843000000
+          },
+          "stockOutCount": {
+            "type": "integer",
+            "description": "Producto-bodega con existencia 0 y mínimo > 0"
+          },
+          "lowStockAlerts": {
+            "type": "integer"
+          },
+          "expiringLots30d": {
+            "type": "integer"
+          },
+          "pendingPurchaseOrders": {
+            "type": "integer"
+          },
+          "overduePurchaseOrders": {
+            "type": "integer"
+          },
+          "transfersInTransit": {
+            "type": "integer"
+          },
+          "topRotation": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RotationItem"
+            }
+          },
+          "valueByWarehouse": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "warehouseId": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "StockReport": {
+        "type": "object",
+        "properties": {
+          "freshness": {
+            "$ref": "#/components/schemas/Freshness"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "productId": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "byWarehouse": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "number"
+                  },
+                  "example": {
+                    "CHI": 420,
+                    "MZL": 80,
+                    "SRC": 35,
+                    "ANS": 0,
+                    "RSU": 4
+                  }
+                },
+                "total": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "MovementsReport": {
+        "type": "object",
+        "properties": {
+          "freshness": {
+            "$ref": "#/components/schemas/Freshness"
+          },
+          "totals": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "example": {
+              "ENTRADA_COMPRA": 1200,
+              "SALIDA": -950,
+              "TRASLADO_SALIDA": -300,
+              "TRASLADO_ENTRADA": 296
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "movementId": {
+                  "type": "integer"
+                },
+                "date": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "productCode": {
+                  "type": "string"
+                },
+                "warehouseId": {
+                  "type": "string"
+                },
+                "lotNumber": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "quantity": {
+                  "type": "number"
+                },
+                "userId": {
+                  "type": "integer"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ExpiringLotsReport": {
+        "type": "object",
+        "properties": {
+          "freshness": {
+            "$ref": "#/components/schemas/Freshness"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExpiringLot"
+            }
+          }
+        }
+      },
+      "ExpiringLot": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "lotNumber": {
+            "type": "string"
+          },
+          "expiryDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "daysToExpiry": {
+            "type": "integer"
+          },
+          "warehouseId": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "suggestedDestinationId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Bodega con mayor rotación del producto (oportunidad identificada en la investigación)"
+          }
+        }
+      },
+      "ExpiryAlerts": {
+        "type": "object",
+        "properties": {
+          "freshness": {
+            "$ref": "#/components/schemas/Freshness"
+          },
+          "alerts": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/ExpiringLot"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "CRITICA",
+                        "ALTA",
+                        "MEDIA"
+                      ],
+                      "description": "<=15, <=30, <=60 días"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "PendingOrdersReport": {
+        "type": "object",
+        "properties": {
+          "freshness": {
+            "$ref": "#/components/schemas/Freshness"
+          },
+          "orders": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "purchaseOrderId": {
+                  "type": "integer"
+                },
+                "number": {
+                  "type": "string"
+                },
+                "supplierName": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "expectedDeliveryDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "daysOverdue": {
+                  "type": "integer"
+                },
+                "pendingValue": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "supplierPerformance": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "supplierId": {
+                  "type": "integer"
+                },
+                "supplierName": {
+                  "type": "string"
+                },
+                "onTimePct": {
+                  "type": "number"
+                },
+                "avgDelayDays": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ReturnsReport": {
+        "type": "object",
+        "properties": {
+          "freshness": {
+            "$ref": "#/components/schemas/Freshness"
+          },
+          "byReason": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "CLIENTE",
+                    "PROVEEDOR"
+                  ]
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "date": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "productCode": {
+                  "type": "string"
+                },
+                "lotNumber": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "quantity": {
+                  "type": "number"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "ValuationReport": {
+        "type": "object",
+        "properties": {
+          "freshness": {
+            "$ref": "#/components/schemas/Freshness"
+          },
+          "total": {
+            "type": "number"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "example": "CHI"
+                },
+                "value": {
+                  "type": "number"
+                },
+                "pct": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "RotationItem": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "unitsOut": {
+            "type": "number"
+          },
+          "avgStock": {
+            "type": "number"
+          },
+          "rotationIndex": {
+            "type": "number",
+            "description": "unitsOut / avgStock en el período"
+          }
+        }
+      },
+      "RotationReport": {
+        "type": "object",
+        "properties": {
+          "freshness": {
+            "$ref": "#/components/schemas/Freshness"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RotationItem"
+            }
+          }
+        }
+      }
+    }
+  }
+}

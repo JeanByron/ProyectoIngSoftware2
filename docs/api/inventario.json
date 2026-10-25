@@ -1,0 +1,2179 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Inventario API - AgroInsumos Cafeteros",
+    "version": "1.0.0",
+    "description": "Núcleo transaccional: bodegas, existencias por lote, movimientos (kardex), FEFO, traslados,\nstock mínimo y alertas de bajo stock, devoluciones de cliente y trazabilidad por lote\n(RF05-RF09, RF12 cliente, RF13 stock; E-RF04, E-RF05, E-RF09, E-RF10, E-RF13).\nStack: Django + MySQL (transacciones ACID, bloqueo de filas por lote).\n- No consulta al Catálogo en la ruta crítica: guarda una referencia local del producto\n  (productId, code, name, unit, requiresLot) recibida en las entradas.\n- Restricción por bodega: el Gateway reenvía X-User-Warehouses (vacío = todas).\n- Escrituras reintentables exigen cabecera Idempotency-Key (mismo key = misma respuesta, sin duplicar).\n- /internal/* no se enruta por el Gateway; solo accesible desde Compras (NetworkPolicy).\n"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000/api/v1",
+      "description": "A través del API Gateway"
+    },
+    {
+      "url": "http://localhost:8003/api/v1",
+      "description": "Directo al servicio (solo desarrollo local)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Bodegas"
+    },
+    {
+      "name": "Existencias"
+    },
+    {
+      "name": "Movimientos"
+    },
+    {
+      "name": "Traslados"
+    },
+    {
+      "name": "Stock mínimo y alertas"
+    },
+    {
+      "name": "Devoluciones de cliente"
+    },
+    {
+      "name": "Lotes"
+    },
+    {
+      "name": "Interno"
+    },
+    {
+      "name": "Sistema"
+    }
+  ],
+  "paths": {
+    "/warehouses": {
+      "get": {
+        "tags": [
+          "Bodegas"
+        ],
+        "summary": "Listar bodegas",
+        "x-roles": [
+          "ALL"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Warehouse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/warehouses/{warehouseId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/WarehouseIdPath"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Bodegas"
+        ],
+        "summary": "Consultar bodega",
+        "x-roles": [
+          "ALL"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Warehouse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Bodegas"
+        ],
+        "summary": "Actualizar datos de bodega",
+        "x-roles": [
+          "ADMIN"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Warehouse"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Warehouse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stock": {
+      "get": {
+        "tags": [
+          "Existencias"
+        ],
+        "summary": "Existencias por producto, bodega y lote",
+        "x-roles": [
+          "ALL"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "warehouseId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lotNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "expiringBefore",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/UpdatedSince"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PageMeta"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/StockLot"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stock/consolidated": {
+      "get": {
+        "tags": [
+          "Existencias"
+        ],
+        "summary": "Existencias consolidadas de todas las sedes por producto",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS",
+          "JEFE_BODEGA",
+          "BODEGUERO",
+          "VENDEDOR",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PageMeta"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/ConsolidatedStock"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fefo-suggestion": {
+      "get": {
+        "tags": [
+          "Existencias"
+        ],
+        "summary": "Sugerencia FEFO de lotes para una salida",
+        "description": "Devuelve los lotes a usar, del que vence primero al último, hasta cubrir la cantidad.",
+        "x-roles": [
+          "JEFE_BODEGA",
+          "BODEGUERO",
+          "VENDEDOR"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "warehouseId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "quantity",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "minimum": 0.01
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FefoSuggestion"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/InsufficientStock"
+          }
+        }
+      }
+    },
+    "/movements": {
+      "get": {
+        "tags": [
+          "Movimientos"
+        ],
+        "summary": "Kardex / histórico de movimientos (auditoría)",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS",
+          "JEFE_BODEGA",
+          "BODEGUERO",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "warehouseId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lotNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/MovementType"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/UpdatedSince"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PageMeta"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Movement"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Movimientos"
+        ],
+        "summary": "Registrar entrada, salida o ajuste manual",
+        "description": "SALIDA sin lotNumber en producto con requiresLot=true asigna lotes por FEFO automáticamente\ny genera un movimiento por lote. Ventas (fuera de alcance) se registran como SALIDA con reason=VENTA.\nAJUSTE admite cantidad negativa (conteo físico).\n",
+        "x-roles": [
+          "JEFE_BODEGA",
+          "BODEGUERO"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MovementInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Movimiento(s) registrado(s)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Movement"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/InsufficientStock"
+          }
+        }
+      }
+    },
+    "/movements/{movementId}": {
+      "get": {
+        "tags": [
+          "Movimientos"
+        ],
+        "summary": "Consultar movimiento",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS",
+          "JEFE_BODEGA",
+          "BODEGUERO",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "name": "movementId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Movement"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/transfers": {
+      "get": {
+        "tags": [
+          "Traslados"
+        ],
+        "summary": "Listar traslados",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_BODEGA",
+          "BODEGUERO",
+          "VENDEDOR",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/TransferStatus"
+            }
+          },
+          {
+            "name": "originId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "destinationId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/UpdatedSince"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PageMeta"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Transfer"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Traslados"
+        ],
+        "summary": "Solicitar traslado (estado SOLICITADO)",
+        "x-roles": [
+          "VENDEDOR",
+          "BODEGUERO",
+          "JEFE_BODEGA"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Solicitado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transfer"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/transfers/{transferId}": {
+      "get": {
+        "tags": [
+          "Traslados"
+        ],
+        "summary": "Consultar traslado con su historial de estados",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_BODEGA",
+          "BODEGUERO",
+          "VENDEDOR",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TransferIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transfer"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/transfers/{transferId}/approve": {
+      "post": {
+        "tags": [
+          "Traslados"
+        ],
+        "summary": "Aprobar (SOLICITADO → APROBADO)",
+        "x-roles": [
+          "JEFE_BODEGA"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TransferIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TransferOk"
+          },
+          "409": {
+            "$ref": "#/components/responses/InvalidState"
+          }
+        }
+      }
+    },
+    "/transfers/{transferId}/dispatch": {
+      "post": {
+        "tags": [
+          "Traslados"
+        ],
+        "summary": "Despachar (APROBADO → EN_TRANSITO); descuenta stock en origen",
+        "description": "Si no se envían lotes se asignan por FEFO. Operación atómica con el movimiento TRASLADO_SALIDA.",
+        "x-roles": [
+          "JEFE_BODEGA",
+          "BODEGUERO"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TransferIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "lots": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/TransferLotLine"
+                    }
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TransferOk"
+          },
+          "409": {
+            "$ref": "#/components/responses/InvalidState"
+          },
+          "422": {
+            "$ref": "#/components/responses/InsufficientStock"
+          }
+        }
+      }
+    },
+    "/transfers/{transferId}/receive": {
+      "post": {
+        "tags": [
+          "Traslados"
+        ],
+        "summary": "Recibir (EN_TRANSITO → RECIBIDO | RECIBIDO_CON_DIFERENCIAS); suma stock en destino",
+        "description": "Se registra la cantidad recibida por lote; las diferencias con lo despachado quedan registradas.",
+        "x-roles": [
+          "JEFE_BODEGA",
+          "BODEGUERO"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TransferIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "lots"
+                ],
+                "properties": {
+                  "lots": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "productId",
+                        "lotNumber",
+                        "receivedQuantity"
+                      ],
+                      "properties": {
+                        "productId": {
+                          "type": "string"
+                        },
+                        "lotNumber": {
+                          "type": "string"
+                        },
+                        "receivedQuantity": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "differenceReason": {
+                          "type": "string",
+                          "example": "Bulto roto en transporte"
+                        }
+                      }
+                    }
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TransferOk"
+          },
+          "409": {
+            "$ref": "#/components/responses/InvalidState"
+          }
+        }
+      }
+    },
+    "/transfers/{transferId}/reject": {
+      "post": {
+        "tags": [
+          "Traslados"
+        ],
+        "summary": "Rechazar (SOLICITADO → RECHAZADO o EN_TRANSITO → RECHAZADO con devolución a origen)",
+        "x-roles": [
+          "JEFE_BODEGA",
+          "BODEGUERO"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TransferIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TransferOk"
+          },
+          "409": {
+            "$ref": "#/components/responses/InvalidState"
+          }
+        }
+      }
+    },
+    "/transfers/{transferId}/cancel": {
+      "post": {
+        "tags": [
+          "Traslados"
+        ],
+        "summary": "Cancelar antes del despacho (SOLICITADO | APROBADO → CANCELADO)",
+        "x-roles": [
+          "VENDEDOR",
+          "JEFE_BODEGA"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TransferIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TransferOk"
+          },
+          "409": {
+            "$ref": "#/components/responses/InvalidState"
+          }
+        }
+      }
+    },
+    "/min-stock": {
+      "get": {
+        "tags": [
+          "Stock mínimo y alertas"
+        ],
+        "summary": "Umbrales de stock mínimo por producto y bodega",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "JEFE_BODEGA",
+          "BODEGUERO"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "warehouseId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MinStock"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Stock mínimo y alertas"
+        ],
+        "summary": "Crear o actualizar umbral (upsert por producto+bodega)",
+        "x-roles": [
+          "JEFE_COMPRAS",
+          "JEFE_BODEGA"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MinStock"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MinStock"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/alerts/low-stock": {
+      "get": {
+        "tags": [
+          "Stock mínimo y alertas"
+        ],
+        "summary": "Alertas de bajo stock (evaluadas en cada movimiento)",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS",
+          "JEFE_BODEGA",
+          "BODEGUERO"
+        ],
+        "parameters": [
+          {
+            "name": "warehouseId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVA",
+                "RESUELTA"
+              ],
+              "default": "ACTIVA"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/UpdatedSince"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LowStockAlert"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/customer-returns": {
+      "get": {
+        "tags": [
+          "Devoluciones de cliente"
+        ],
+        "summary": "Listar devoluciones de cliente",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_BODEGA",
+          "BODEGUERO",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "name": "warehouseId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lotNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/UpdatedSince"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PageMeta"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/CustomerReturn"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Devoluciones de cliente"
+        ],
+        "summary": "Registrar devolución de cliente (entrada al lote original)",
+        "x-roles": [
+          "JEFE_BODEGA",
+          "BODEGUERO"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerReturnInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Registrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerReturn"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/lots/{lotNumber}/trace": {
+      "get": {
+        "tags": [
+          "Lotes"
+        ],
+        "summary": "Trazabilidad de un lote (bodegas por las que pasó y movimientos)",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "JEFE_BODEGA",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "name": "lotNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LotTrace"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/internal/entries": {
+      "post": {
+        "tags": [
+          "Interno"
+        ],
+        "summary": "Entrada por recepción de orden de compra (llamado por Compras)",
+        "description": "Idempotency-Key = id de la recepción. Reintento con mismo key devuelve la respuesta original.",
+        "x-roles": [
+          "SERVICE_COMPRAS"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyRequired"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InternalEntry"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Entradas registradas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Movement"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/internal/exits": {
+      "post": {
+        "tags": [
+          "Interno"
+        ],
+        "summary": "Salida por devolución a proveedor (llamado por Compras)",
+        "description": "Idempotency-Key = id de la devolución a proveedor.",
+        "x-roles": [
+          "SERVICE_COMPRAS"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyRequired"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InternalExit"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Salidas registradas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Movement"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/InsufficientStock"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Sistema"
+        ],
+        "summary": "Health check",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        }
+      },
+      "Size": {
+        "name": "size",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      },
+      "UpdatedSince": {
+        "name": "updatedSince",
+        "in": "query",
+        "description": "Sondeo incremental de Reportes",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "description": "Recomendado; obligatorio si el cliente reintenta",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "IdempotencyKeyRequired": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "WarehouseIdPath": {
+        "name": "warehouseId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
+      "TransferIdPath": {
+        "name": "transferId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Datos inválidos",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Rol o bodega sin permiso",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "No encontrado",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "InvalidState": {
+        "description": "Transición de estado no permitida",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "InsufficientStock": {
+        "description": "Stock insuficiente en la bodega/lote",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "TransferOk": {
+        "description": "OK",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Transfer"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "INSUFFICIENT_STOCK"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "correlationId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PageMeta": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "UP",
+              "DOWN"
+            ]
+          },
+          "service": {
+            "type": "string"
+          },
+          "db": {
+            "type": "string",
+            "enum": [
+              "UP",
+              "DOWN"
+            ]
+          }
+        }
+      },
+      "Warehouse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "CHI",
+              "MZL",
+              "SRC",
+              "ANS",
+              "RSU"
+            ],
+            "example": "ANS"
+          },
+          "name": {
+            "type": "string",
+            "example": "Anserma"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "CENTRAL",
+              "PUNTO_VENTA",
+              "RURAL"
+            ]
+          },
+          "address": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProductRef": {
+        "type": "object",
+        "description": "Copia local mínima del producto (no se consulta al Catálogo)",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "example": "AGQ-0153"
+          },
+          "name": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "BULTO",
+              "LITRO",
+              "KILO",
+              "UNIDAD"
+            ]
+          },
+          "requiresLot": {
+            "type": "boolean"
+          }
+        }
+      },
+      "StockLot": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "$ref": "#/components/schemas/ProductRef"
+          },
+          "warehouseId": {
+            "type": "string"
+          },
+          "lotNumber": {
+            "type": "string",
+            "nullable": true,
+            "description": "null si el producto no maneja lote"
+          },
+          "expiryDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ConsolidatedStock": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "$ref": "#/components/schemas/ProductRef"
+          },
+          "total": {
+            "type": "number"
+          },
+          "byWarehouse": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "warehouseId": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "number"
+                },
+                "inTransit": {
+                  "type": "number",
+                  "description": "Cantidad en traslados EN_TRANSITO hacia esta bodega"
+                }
+              }
+            }
+          }
+        }
+      },
+      "FefoSuggestion": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "warehouseId": {
+            "type": "string"
+          },
+          "requested": {
+            "type": "number"
+          },
+          "allocations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "lotNumber": {
+                  "type": "string"
+                },
+                "expiryDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "quantity": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "MovementType": {
+        "type": "string",
+        "enum": [
+          "ENTRADA",
+          "SALIDA",
+          "AJUSTE",
+          "TRASLADO_SALIDA",
+          "TRASLADO_ENTRADA",
+          "DEVOLUCION_CLIENTE",
+          "DEVOLUCION_PROVEEDOR",
+          "ENTRADA_COMPRA"
+        ]
+      },
+      "MovementInput": {
+        "type": "object",
+        "required": [
+          "type",
+          "productId",
+          "warehouseId",
+          "quantity",
+          "reason"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "ENTRADA",
+              "SALIDA",
+              "AJUSTE"
+            ]
+          },
+          "productId": {
+            "type": "string"
+          },
+          "product": {
+            "$ref": "#/components/schemas/ProductRef"
+          },
+          "warehouseId": {
+            "type": "string"
+          },
+          "lotNumber": {
+            "type": "string",
+            "description": "Obligatorio en ENTRADA si requiresLot; opcional en SALIDA (FEFO)"
+          },
+          "expiryDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Obligatorio en ENTRADA si requiresLot"
+          },
+          "quantity": {
+            "type": "number",
+            "description": "Positiva; en AJUSTE puede ser negativa"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "VENTA",
+              "CONTEO_FISICO",
+              "DANO",
+              "VENCIMIENTO",
+              "CARGA_INICIAL",
+              "OTRO"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      },
+      "Movement": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "type": {
+            "$ref": "#/components/schemas/MovementType"
+          },
+          "productId": {
+            "type": "string"
+          },
+          "warehouseId": {
+            "type": "string"
+          },
+          "lotNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "number",
+            "description": "Con signo (+ entra, - sale)"
+          },
+          "balanceAfter": {
+            "type": "number",
+            "description": "Saldo del lote en la bodega después del movimiento"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "referenceType": {
+            "type": "string",
+            "enum": [
+              "MANUAL",
+              "TRASLADO",
+              "RECEPCION_OC",
+              "DEVOLUCION_CLIENTE",
+              "DEVOLUCION_PROVEEDOR"
+            ],
+            "nullable": true
+          },
+          "referenceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TransferStatus": {
+        "type": "string",
+        "enum": [
+          "SOLICITADO",
+          "APROBADO",
+          "EN_TRANSITO",
+          "RECIBIDO",
+          "RECIBIDO_CON_DIFERENCIAS",
+          "RECHAZADO",
+          "CANCELADO"
+        ]
+      },
+      "TransferRequest": {
+        "type": "object",
+        "required": [
+          "originId",
+          "destinationId",
+          "items"
+        ],
+        "properties": {
+          "originId": {
+            "type": "string",
+            "example": "CHI"
+          },
+          "destinationId": {
+            "type": "string",
+            "example": "RSU"
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "productId",
+                "quantity"
+              ],
+              "properties": {
+                "productId": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "number",
+                  "minimum": 0.01
+                }
+              }
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      },
+      "TransferLotLine": {
+        "type": "object",
+        "required": [
+          "productId",
+          "lotNumber",
+          "quantity"
+        ],
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "lotNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "number"
+          }
+        }
+      },
+      "Transfer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "originId": {
+            "type": "string"
+          },
+          "destinationId": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TransferStatus"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "productId": {
+                  "type": "string"
+                },
+                "requestedQuantity": {
+                  "type": "number"
+                },
+                "lots": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "lotNumber": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "dispatchedQuantity": {
+                        "type": "number"
+                      },
+                      "receivedQuantity": {
+                        "type": "number",
+                        "nullable": true
+                      },
+                      "difference": {
+                        "type": "number",
+                        "nullable": true
+                      },
+                      "differenceReason": {
+                        "type": "string",
+                        "nullable": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "$ref": "#/components/schemas/TransferStatus"
+                },
+                "userId": {
+                  "type": "integer"
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "MinStock": {
+        "type": "object",
+        "required": [
+          "productId",
+          "warehouseId",
+          "minQuantity"
+        ],
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "warehouseId": {
+            "type": "string"
+          },
+          "minQuantity": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      },
+      "LowStockAlert": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "productId": {
+            "type": "string"
+          },
+          "warehouseId": {
+            "type": "string"
+          },
+          "currentQuantity": {
+            "type": "number"
+          },
+          "minQuantity": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVA",
+              "RESUELTA"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "resolvedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "CustomerReturnInput": {
+        "type": "object",
+        "required": [
+          "productId",
+          "warehouseId",
+          "quantity",
+          "reason",
+          "externalInvoice"
+        ],
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "warehouseId": {
+            "type": "string"
+          },
+          "lotNumber": {
+            "type": "string",
+            "description": "Obligatorio si el producto maneja lote"
+          },
+          "quantity": {
+            "type": "number",
+            "minimum": 0.01
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "DEFECTUOSO",
+              "ERROR_DESPACHO",
+              "NO_REQUERIDO",
+              "OTRO"
+            ]
+          },
+          "externalInvoice": {
+            "type": "string",
+            "example": "FE-001234"
+          },
+          "customerName": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      },
+      "CustomerReturn": {
+        "allOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "movementId": {
+                "type": "integer"
+              },
+              "userId": {
+                "type": "integer"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          {
+            "$ref": "#/components/schemas/CustomerReturnInput"
+          }
+        ]
+      },
+      "LotTrace": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "lotNumber": {
+            "type": "string"
+          },
+          "expiryDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "currentStock": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "warehouseId": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "warehousesVisited": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "movements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Movement"
+            }
+          }
+        }
+      },
+      "InternalEntry": {
+        "type": "object",
+        "required": [
+          "receiptId",
+          "purchaseOrderId",
+          "warehouseId",
+          "lines"
+        ],
+        "properties": {
+          "receiptId": {
+            "type": "string"
+          },
+          "purchaseOrderId": {
+            "type": "integer"
+          },
+          "warehouseId": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "product",
+                "quantity"
+              ],
+              "properties": {
+                "product": {
+                  "$ref": "#/components/schemas/ProductRef"
+                },
+                "lotNumber": {
+                  "type": "string"
+                },
+                "expiryDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "quantity": {
+                  "type": "number",
+                  "minimum": 0.01
+                }
+              }
+            }
+          }
+        }
+      },
+      "InternalExit": {
+        "type": "object",
+        "required": [
+          "supplierReturnId",
+          "warehouseId",
+          "lines"
+        ],
+        "properties": {
+          "supplierReturnId": {
+            "type": "string"
+          },
+          "warehouseId": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "productId",
+                "quantity"
+              ],
+              "properties": {
+                "productId": {
+                  "type": "string"
+                },
+                "lotNumber": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "number",
+                  "minimum": 0.01
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

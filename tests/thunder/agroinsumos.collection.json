@@ -1,0 +1,1280 @@
+{
+  "info": {
+    "name": "AgroInsumos - Microservicios (localhost)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Pruebas GET/POST por servicio. X-User-* simula lo que reenvía el API Gateway. Ejecutar en orden con los servicios recién iniciados."
+  },
+  "item": [
+    {
+      "name": "1 Identidad",
+      "item": [
+        {
+          "name": "Health [200]",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{identidad}}/health"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Login OK [200]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{identidad}}/auth/login"
+            },
+            "description": "Esperado: HTTP 200",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"Clave*2026\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login credenciales inválidas [401]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{identidad}}/auth/login"
+            },
+            "description": "Esperado: HTTP 401",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"mala\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login sin password [400]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{identidad}}/auth/login"
+            },
+            "description": "Esperado: HTTP 400",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Usuario autenticado (me) [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              }
+            ],
+            "url": {
+              "raw": "{{identidad}}/auth/me"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Listar usuarios por rol [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              }
+            ],
+            "url": {
+              "raw": "{{identidad}}/users?role=BODEGUERO"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Crear usuario [201]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{identidad}}/users"
+            },
+            "description": "Esperado: HTTP 201",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"bodeguero.riosucio\",\n  \"fullName\": \"Ana Torres\",\n  \"email\": \"ana@agroinsumos.co\",\n  \"role\": \"BODEGUERO\",\n  \"warehouseIds\": [\n    \"RSU\"\n  ],\n  \"password\": \"Clave*2026\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Crear usuario duplicado [409]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{identidad}}/users"
+            },
+            "description": "Esperado: HTTP 409",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"fullName\": \"X\",\n  \"email\": \"x@x.co\",\n  \"role\": \"ADMIN\",\n  \"password\": \"Clave*2026\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar usuarios sin rol ADMIN [403]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "5"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "BODEGUERO"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "ANS"
+              }
+            ],
+            "url": {
+              "raw": "{{identidad}}/users"
+            },
+            "description": "Esperado: HTTP 403"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 Catalogo",
+      "item": [
+        {
+          "name": "Health [200]",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{catalogo}}/health"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Buscar productos por nombre [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "6"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "VENDEDOR"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "MZL"
+              }
+            ],
+            "url": {
+              "raw": "{{catalogo}}/products?q=urea"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Filtrar por categoría (incluye subcategorías) [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "6"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "VENDEDOR"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "MZL"
+              }
+            ],
+            "url": {
+              "raw": "{{catalogo}}/products?categoryId=cat-agroquimicos"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Filtrar por proveedor habitual [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "6"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "VENDEDOR"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "MZL"
+              }
+            ],
+            "url": {
+              "raw": "{{catalogo}}/products?supplierId=2"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Consultar producto [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "6"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "VENDEDOR"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "MZL"
+              }
+            ],
+            "url": {
+              "raw": "{{catalogo}}/products/p-agq-0153"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Crear producto (semilla) [201]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "3"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_COMPRAS"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{catalogo}}/products"
+            },
+            "description": "Esperado: HTTP 201",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"SEM-0010\",\n  \"name\": \"Semilla café Castillo 1 kg\",\n  \"type\": \"SEMILLA\",\n  \"categoryId\": \"cat-fertilizantes\",\n  \"unit\": \"KILO\",\n  \"referencePrice\": 45000,\n  \"usualSupplierId\": 1,\n  \"requiresLot\": true,\n  \"technicalSheet\": {\n    \"variety\": \"Castillo\",\n    \"germinationPct\": 85\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "Crear producto código duplicado [409]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "3"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_COMPRAS"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{catalogo}}/products"
+            },
+            "description": "Esperado: HTTP 409",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"AGQ-0153\",\n  \"name\": \"Dup\",\n  \"type\": \"AGROQUIMICO\",\n  \"categoryId\": \"cat-fungicidas\",\n  \"unit\": \"LITRO\",\n  \"referencePrice\": 1,\n  \"requiresLot\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Crear producto sin permiso (vendedor) [403]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "6"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "VENDEDOR"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "MZL"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{catalogo}}/products"
+            },
+            "description": "Esperado: HTTP 403",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"X\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Listar categorías raíz [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "6"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "VENDEDOR"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "MZL"
+              }
+            ],
+            "url": {
+              "raw": "{{catalogo}}/categories"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Crear subcategoría [201]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "3"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_COMPRAS"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{catalogo}}/categories"
+            },
+            "description": "Esperado: HTTP 201",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Insecticidas\",\n  \"parentId\": \"cat-agroquimicos\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Sin cabeceras del Gateway [401]",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{catalogo}}/products"
+            },
+            "description": "Esperado: HTTP 401"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 Inventario",
+      "item": [
+        {
+          "name": "Health [200]",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{inventario}}/health"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Listar bodegas [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "6"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "VENDEDOR"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "MZL"
+              }
+            ],
+            "url": {
+              "raw": "{{inventario}}/warehouses"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Existencias en Chinchiná [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "4"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_BODEGA"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "CHI,RSU"
+              }
+            ],
+            "url": {
+              "raw": "{{inventario}}/stock?warehouseId=CHI"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Sugerencia FEFO [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "4"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_BODEGA"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "CHI,RSU"
+              }
+            ],
+            "url": {
+              "raw": "{{inventario}}/fefo-suggestion?productId=p-agq-0153&warehouseId=CHI&quantity=50"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "FEFO stock insuficiente [422]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "4"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_BODEGA"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "CHI,RSU"
+              }
+            ],
+            "url": {
+              "raw": "{{inventario}}/fefo-suggestion?productId=p-agq-0153&warehouseId=CHI&quantity=99999"
+            },
+            "description": "Esperado: HTTP 422"
+          }
+        },
+        {
+          "name": "Salida por venta con FEFO automático [201]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "4"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_BODEGA"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "CHI,RSU"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "mov-001"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{inventario}}/movements"
+            },
+            "description": "Esperado: HTTP 201",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"SALIDA\",\n  \"productId\": \"p-agq-0153\",\n  \"warehouseId\": \"CHI\",\n  \"quantity\": 5,\n  \"reason\": \"VENTA\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Entrada sin lote en producto con lote [400]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "4"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_BODEGA"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "CHI,RSU"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{inventario}}/movements"
+            },
+            "description": "Esperado: HTTP 400",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"ENTRADA\",\n  \"productId\": \"p-agq-0153\",\n  \"warehouseId\": \"CHI\",\n  \"quantity\": 10,\n  \"reason\": \"CARGA_INICIAL\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Movimiento en bodega no asignada [403]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "5"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "BODEGUERO"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "ANS"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{inventario}}/movements"
+            },
+            "description": "Esperado: HTTP 403",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"SALIDA\",\n  \"productId\": \"p-fer-0001\",\n  \"warehouseId\": \"CHI\",\n  \"quantity\": 1,\n  \"reason\": \"VENTA\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Kardex del producto [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "4"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_BODEGA"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "CHI,RSU"
+              }
+            ],
+            "url": {
+              "raw": "{{inventario}}/movements?productId=p-agq-0153"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Solicitar traslado CHI→RSU [201]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "6"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "VENDEDOR"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "MZL"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "tr-001"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{inventario}}/transfers"
+            },
+            "description": "Esperado: HTTP 201",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"originId\": \"CHI\",\n  \"destinationId\": \"RSU\",\n  \"items\": [\n    {\n      \"productId\": \"p-agq-0153\",\n      \"quantity\": 30\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Despachar sin aprobar [409]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "4"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_BODEGA"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "CHI,RSU"
+              }
+            ],
+            "url": {
+              "raw": "{{inventario}}/transfers/1/dispatch"
+            },
+            "description": "Esperado: HTTP 409"
+          }
+        },
+        {
+          "name": "Aprobar traslado [200]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "4"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_BODEGA"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "CHI,RSU"
+              }
+            ],
+            "url": {
+              "raw": "{{inventario}}/transfers/1/approve"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Despachar traslado (descuenta origen) [200]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "4"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_BODEGA"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "CHI,RSU"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "tr-001-dispatch"
+              }
+            ],
+            "url": {
+              "raw": "{{inventario}}/transfers/1/dispatch"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Recibir con diferencia [200]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "4"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_BODEGA"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "CHI,RSU"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "tr-001-receive"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{inventario}}/transfers/1/receive"
+            },
+            "description": "Esperado: HTTP 200",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lots\": [\n    {\n      \"productId\": \"p-agq-0153\",\n      \"lotNumber\": \"L2026-031\",\n      \"receivedQuantity\": 13,\n      \"differenceReason\": \"Envase roto\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Consultar traslado [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "2"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "GERENTE"
+              }
+            ],
+            "url": {
+              "raw": "{{inventario}}/transfers/1"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 Compras",
+      "item": [
+        {
+          "name": "Health [200]",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{compras}}/health"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Listar proveedores [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "3"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_COMPRAS"
+              }
+            ],
+            "url": {
+              "raw": "{{compras}}/suppliers"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Registrar proveedor [201]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "3"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_COMPRAS"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{compras}}/suppliers"
+            },
+            "description": "Esperado: HTTP 201",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nit\": \"901555222-3\",\n  \"name\": \"Herramientas del Eje S.A.S.\",\n  \"type\": \"FABRICANTE_NACIONAL\",\n  \"defaultLeadTimeDays\": 5\n}"
+            }
+          }
+        },
+        {
+          "name": "Crear OC (consulta Catálogo) [201]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "3"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_COMPRAS"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{compras}}/purchase-orders"
+            },
+            "description": "Esperado: HTTP 201",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": 1,\n  \"destinationWarehouseId\": \"CHI\",\n  \"expectedDeliveryDate\": \"2026-11-05\",\n  \"lines\": [\n    {\n      \"productId\": \"p-agq-0153\",\n      \"quantity\": 100,\n      \"unitPrice\": 95000\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Crear OC producto inexistente [422]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "3"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_COMPRAS"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{compras}}/purchase-orders"
+            },
+            "description": "Esperado: HTTP 422",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supplierId\": 1,\n  \"destinationWarehouseId\": \"CHI\",\n  \"lines\": [\n    {\n      \"productId\": \"no-existe\",\n      \"quantity\": 1,\n      \"unitPrice\": 1\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Aprobar OC [200]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "3"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_COMPRAS"
+              }
+            ],
+            "url": {
+              "raw": "{{compras}}/purchase-orders/1/approve"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Enviar OC al proveedor [200]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "3"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_COMPRAS"
+              }
+            ],
+            "url": {
+              "raw": "{{compras}}/purchase-orders/1/send"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Recepción sin lote [422]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "4"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_BODEGA"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "CHI,RSU"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "rec-000"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{compras}}/purchase-orders/1/receipts"
+            },
+            "description": "Esperado: HTTP 422",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lines\": [\n    {\n      \"lineId\": 1,\n      \"quantity\": 60\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Recepción parcial (entrada en Inventario) [201]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "4"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_BODEGA"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "CHI,RSU"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "rec-001"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{compras}}/purchase-orders/1/receipts"
+            },
+            "description": "Esperado: HTTP 201",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deliveryNote\": \"REM-8812\",\n  \"lines\": [\n    {\n      \"lineId\": 1,\n      \"quantity\": 60,\n      \"lotNumber\": \"L2026-090\",\n      \"expiryDate\": \"2027-06-30\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Reintento misma Idempotency-Key (no duplica) [201]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "4"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_BODEGA"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "CHI,RSU"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "rec-001"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{compras}}/purchase-orders/1/receipts"
+            },
+            "description": "Esperado: HTTP 201",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deliveryNote\": \"REM-8812\",\n  \"lines\": [\n    {\n      \"lineId\": 1,\n      \"quantity\": 60,\n      \"lotNumber\": \"L2026-090\",\n      \"expiryDate\": \"2027-06-30\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Consultar OC (RECIBIDA_PARCIAL) [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "3"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "JEFE_COMPRAS"
+              }
+            ],
+            "url": {
+              "raw": "{{compras}}/purchase-orders/1"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5 Reportes",
+      "item": [
+        {
+          "name": "Health [200]",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{reportes}}/health"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Forzar sincronización [202]",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "1"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "ADMIN"
+              }
+            ],
+            "url": {
+              "raw": "{{reportes}}/sync/run"
+            },
+            "description": "Esperado: HTTP 202"
+          }
+        },
+        {
+          "name": "Estado de sincronización [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "2"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "GERENTE"
+              }
+            ],
+            "url": {
+              "raw": "{{reportes}}/sync/status"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Dashboard [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "2"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "GERENTE"
+              }
+            ],
+            "url": {
+              "raw": "{{reportes}}/dashboard"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Reporte de existencias consolidadas [200]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "2"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "GERENTE"
+              }
+            ],
+            "url": {
+              "raw": "{{reportes}}/reports/stock"
+            },
+            "description": "Esperado: HTTP 200"
+          }
+        },
+        {
+          "name": "Dashboard sin permiso (vendedor) [403]",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "6"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "VENDEDOR"
+              },
+              {
+                "key": "X-User-Warehouses",
+                "value": "MZL"
+              }
+            ],
+            "url": {
+              "raw": "{{reportes}}/dashboard"
+            },
+            "description": "Esperado: HTTP 403"
+          }
+        }
+      ]
+    }
+  ]
+}

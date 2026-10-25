@@ -1,0 +1,824 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Catálogo API - AgroInsumos Cafeteros",
+    "version": "1.0.0",
+    "description": "Definición de productos y categorías (RF04; E-RF01, E-RF02, E-RF12).\nGuarda solo el id del proveedor habitual (los datos del proveedor viven en Compras).\nFichas técnicas heterogéneas por tipo de producto (modelo documental).\nStack: Django + MongoDB (django-mongodb-backend).\nAutorización: el Gateway reenvía X-User-Id, X-User-Role y X-Correlation-Id.\n"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000/api/v1",
+      "description": "A través del API Gateway"
+    },
+    {
+      "url": "http://localhost:8002/api/v1",
+      "description": "Directo al servicio (solo desarrollo local)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Productos"
+    },
+    {
+      "name": "Categorías"
+    },
+    {
+      "name": "Sistema"
+    }
+  ],
+  "paths": {
+    "/products": {
+      "get": {
+        "tags": [
+          "Productos"
+        ],
+        "summary": "Buscar y filtrar productos",
+        "description": "Búsqueda por nombre/código, filtro por categoría, proveedor y estado. updatedSince lo usa Reportes en su sondeo incremental.",
+        "x-roles": [
+          "ALL"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Texto en nombre o descripción",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "in": "query",
+            "description": "Incluye subcategorías",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "supplierId",
+            "in": "query",
+            "description": "Proveedor habitual",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ProductType"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "$ref": "#/components/parameters/UpdatedSince"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PageMeta"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Product"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Productos"
+        ],
+        "summary": "Crear producto",
+        "x-roles": [
+          "ADMIN",
+          "JEFE_COMPRAS"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/products/{productId}": {
+      "parameters": [
+        {
+          "name": "productId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Productos"
+        ],
+        "summary": "Consultar producto",
+        "x-roles": [
+          "ALL"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Productos"
+        ],
+        "summary": "Actualizar producto",
+        "x-roles": [
+          "ADMIN",
+          "JEFE_COMPRAS"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Productos"
+        ],
+        "summary": "Dar de baja producto (baja lógica, active=false)",
+        "x-roles": [
+          "ADMIN",
+          "JEFE_COMPRAS"
+        ],
+        "responses": {
+          "204": {
+            "description": "Dado de baja"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/categories": {
+      "get": {
+        "tags": [
+          "Categorías"
+        ],
+        "summary": "Listar categorías (árbol o plano)",
+        "x-roles": [
+          "ALL"
+        ],
+        "parameters": [
+          {
+            "name": "parentId",
+            "in": "query",
+            "description": "Hijas de esta categoría; omitir para raíces",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tree",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Category"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Categorías"
+        ],
+        "summary": "Crear categoría o subcategoría",
+        "x-roles": [
+          "ADMIN",
+          "JEFE_COMPRAS"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/categories/{categoryId}": {
+      "parameters": [
+        {
+          "name": "categoryId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "tags": [
+          "Categorías"
+        ],
+        "summary": "Consultar categoría",
+        "x-roles": [
+          "ALL"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Categorías"
+        ],
+        "summary": "Actualizar categoría",
+        "x-roles": [
+          "ADMIN",
+          "JEFE_COMPRAS"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Categorías"
+        ],
+        "summary": "Eliminar categoría",
+        "x-roles": [
+          "ADMIN"
+        ],
+        "responses": {
+          "204": {
+            "description": "Eliminada"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Tiene subcategorías o productos asociados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Sistema"
+        ],
+        "summary": "Health check",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        }
+      },
+      "Size": {
+        "name": "size",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      },
+      "UpdatedSince": {
+        "name": "updatedSince",
+        "in": "query",
+        "description": "Solo registros modificados desde esta fecha (sondeo de Reportes)",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Datos inválidos",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "No autenticado",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Rol sin permiso",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "No encontrado",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Código duplicado",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "NOT_FOUND"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "correlationId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PageMeta": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "UP",
+              "DOWN"
+            ]
+          },
+          "service": {
+            "type": "string"
+          },
+          "db": {
+            "type": "string",
+            "enum": [
+              "UP",
+              "DOWN"
+            ]
+          }
+        }
+      },
+      "ProductType": {
+        "type": "string",
+        "enum": [
+          "FERTILIZANTE",
+          "AGROQUIMICO",
+          "SEMILLA",
+          "HERRAMIENTA",
+          "REPUESTO"
+        ]
+      },
+      "Unit": {
+        "type": "string",
+        "enum": [
+          "BULTO",
+          "LITRO",
+          "KILO",
+          "UNIDAD"
+        ]
+      },
+      "Category": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "cat-fungicidas"
+          },
+          "name": {
+            "type": "string",
+            "example": "Fungicidas"
+          },
+          "parentId": {
+            "type": "string",
+            "nullable": true,
+            "example": "cat-agroquimicos"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            },
+            "description": "Solo con tree=true"
+          }
+        }
+      },
+      "CategoryInput": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "AgroquimicoSheet": {
+        "type": "object",
+        "properties": {
+          "activeIngredient": {
+            "type": "string",
+            "example": "Ciproconazol"
+          },
+          "toxicologicalCategory": {
+            "type": "string",
+            "example": "III"
+          },
+          "concentration": {
+            "type": "string",
+            "example": "100 g/L"
+          }
+        }
+      },
+      "SemillaSheet": {
+        "type": "object",
+        "properties": {
+          "variety": {
+            "type": "string",
+            "example": "Castillo"
+          },
+          "germinationPct": {
+            "type": "number",
+            "example": 85
+          }
+        }
+      },
+      "HerramientaSheet": {
+        "type": "object",
+        "properties": {
+          "brand": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "warrantyMonths": {
+            "type": "integer"
+          }
+        }
+      },
+      "ProductInput": {
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "type",
+          "categoryId",
+          "unit",
+          "referencePrice",
+          "requiresLot"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "AGQ-0153"
+          },
+          "name": {
+            "type": "string",
+            "example": "Fungicida Alto 100 SL 1L"
+          },
+          "description": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/ProductType"
+          },
+          "categoryId": {
+            "type": "string"
+          },
+          "unit": {
+            "$ref": "#/components/schemas/Unit"
+          },
+          "referencePrice": {
+            "type": "number",
+            "format": "double",
+            "example": 98500
+          },
+          "usualSupplierId": {
+            "type": "integer",
+            "nullable": true,
+            "example": 3
+          },
+          "requiresLot": {
+            "type": "boolean",
+            "description": "Control por lote y vencimiento (agroquímicos, semillas)"
+          },
+          "icaRegistration": {
+            "type": "string",
+            "nullable": true,
+            "description": "Informativo, sin validaciones"
+          },
+          "technicalSheet": {
+            "description": "Depende de type",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AgroquimicoSheet"
+              },
+              {
+                "$ref": "#/components/schemas/SemillaSheet"
+              },
+              {
+                "$ref": "#/components/schemas/HerramientaSheet"
+              }
+            ]
+          }
+        }
+      },
+      "Product": {
+        "allOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "example": "652f1c9e8a1b2c3d4e5f6a7b"
+              }
+            }
+          },
+          {
+            "$ref": "#/components/schemas/ProductInput"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "active": {
+                "type": "boolean"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

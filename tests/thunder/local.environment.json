@@ -1,0 +1,30 @@
+{
+  "name": "local",
+  "values": [
+    {
+      "key": "identidad",
+      "value": "http://127.0.0.1:8001/api/v1",
+      "enabled": true
+    },
+    {
+      "key": "catalogo",
+      "value": "http://127.0.0.1:8002/api/v1",
+      "enabled": true
+    },
+    {
+      "key": "inventario",
+      "value": "http://127.0.0.1:8003/api/v1",
+      "enabled": true
+    },
+    {
+      "key": "compras",
+      "value": "http://127.0.0.1:8004/api/v1",
+      "enabled": true
+    },
+    {
+      "key": "reportes",
+      "value": "http://127.0.0.1:8005/api/v1",
+      "enabled": true
+    }
+  ]
+}

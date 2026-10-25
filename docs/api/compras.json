@@ -1,0 +1,1856 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Compras API - AgroInsumos Cafeteros",
+    "version": "1.0.0",
+    "description": "Proveedores, órdenes de compra, recepción parcial y devoluciones a proveedor\n(RF10, RF11, RF12 proveedor; E-RF03, E-RF06, E-RF13).\nStack: Django + MySQL.\n- Recepción: Gateway → Compras → Inventario (POST /internal/entries, Idempotency-Key = receiptId).\n  Si Inventario falla, Compras revierte su transacción local y responde 502/503.\n- Devolución a proveedor: al pasar a ENVIADA, Compras → Inventario (POST /internal/exits).\n- Al crear la OC, Compras consulta al Catálogo (operación no crítica) y copia en la línea\n  code, name, unit y requiresLot del producto.\n- Aprobación: JEFE_COMPRAS aprueba hasta el umbral configurado; por encima solo GERENTE.\n"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000/api/v1",
+      "description": "A través del API Gateway"
+    },
+    {
+      "url": "http://localhost:8004/api/v1",
+      "description": "Directo al servicio (solo desarrollo local)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Proveedores"
+    },
+    {
+      "name": "Órdenes de compra"
+    },
+    {
+      "name": "Recepciones"
+    },
+    {
+      "name": "Devoluciones a proveedor"
+    },
+    {
+      "name": "Configuración"
+    },
+    {
+      "name": "Sistema"
+    }
+  ],
+  "paths": {
+    "/suppliers": {
+      "get": {
+        "tags": [
+          "Proveedores"
+        ],
+        "summary": "Listar/buscar proveedores",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Nombre o NIT",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          {
+            "$ref": "#/components/parameters/UpdatedSince"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PageMeta"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Supplier"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Proveedores"
+        ],
+        "summary": "Registrar proveedor",
+        "x-roles": [
+          "JEFE_COMPRAS"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplierInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Supplier"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/suppliers/{supplierId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/SupplierIdPath"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Proveedores"
+        ],
+        "summary": "Consultar proveedor",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS",
+          "AUDITOR"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Supplier"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Proveedores"
+        ],
+        "summary": "Actualizar proveedor",
+        "x-roles": [
+          "JEFE_COMPRAS"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplierInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Supplier"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Proveedores"
+        ],
+        "summary": "Desactivar proveedor (baja lógica)",
+        "x-roles": [
+          "JEFE_COMPRAS"
+        ],
+        "responses": {
+          "204": {
+            "description": "Desactivado"
+          },
+          "409": {
+            "description": "Tiene órdenes abiertas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/suppliers/{supplierId}/products": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/SupplierIdPath"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Proveedores"
+        ],
+        "summary": "Productos que suministra el proveedor (relación proveedor ↔ varios productos)",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SupplierProduct"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Proveedores"
+        ],
+        "summary": "Asociar producto al proveedor con condiciones comerciales",
+        "x-roles": [
+          "JEFE_COMPRAS"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplierProduct"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Asociado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplierProduct"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    },
+    "/suppliers/{supplierId}/products/{productId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/SupplierIdPath"
+        },
+        {
+          "name": "productId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "delete": {
+        "tags": [
+          "Proveedores"
+        ],
+        "summary": "Desasociar producto",
+        "x-roles": [
+          "JEFE_COMPRAS"
+        ],
+        "responses": {
+          "204": {
+            "description": "Desasociado"
+          }
+        }
+      }
+    },
+    "/purchase-orders": {
+      "get": {
+        "tags": [
+          "Órdenes de compra"
+        ],
+        "summary": "Listar órdenes de compra",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS",
+          "JEFE_BODEGA",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/PurchaseOrderStatus"
+            }
+          },
+          {
+            "name": "supplierId",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "overdue",
+            "in": "query",
+            "description": "Fecha esperada vencida y no recibida completa",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/UpdatedSince"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PageMeta"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PurchaseOrder"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Órdenes de compra"
+        ],
+        "summary": "Crear orden de compra (BORRADOR)",
+        "x-roles": [
+          "JEFE_COMPRAS"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseOrderInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Creada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrder"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "422": {
+            "description": "Producto inexistente o inactivo en Catálogo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/purchase-orders/{orderId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/OrderIdPath"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Órdenes de compra"
+        ],
+        "summary": "Consultar orden con líneas, recepciones e historial",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS",
+          "JEFE_BODEGA",
+          "AUDITOR"
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/OrderOk"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Órdenes de compra"
+        ],
+        "summary": "Editar orden (solo en BORRADOR)",
+        "x-roles": [
+          "JEFE_COMPRAS"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PurchaseOrderInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/OrderOk"
+          },
+          "409": {
+            "$ref": "#/components/responses/InvalidState"
+          }
+        }
+      }
+    },
+    "/purchase-orders/{orderId}/approve": {
+      "post": {
+        "tags": [
+          "Órdenes de compra"
+        ],
+        "summary": "Aprobar (BORRADOR → APROBADA)",
+        "description": "403 si total > umbral y el rol no es GERENTE.",
+        "x-roles": [
+          "JEFE_COMPRAS",
+          "GERENTE"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrderIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/OrderOk"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/InvalidState"
+          }
+        }
+      }
+    },
+    "/purchase-orders/{orderId}/send": {
+      "post": {
+        "tags": [
+          "Órdenes de compra"
+        ],
+        "summary": "Marcar enviada al proveedor (APROBADA → ENVIADA)",
+        "x-roles": [
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrderIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/OrderOk"
+          },
+          "409": {
+            "$ref": "#/components/responses/InvalidState"
+          }
+        }
+      }
+    },
+    "/purchase-orders/{orderId}/cancel": {
+      "post": {
+        "tags": [
+          "Órdenes de compra"
+        ],
+        "summary": "Cancelar (BORRADOR | APROBADA | ENVIADA → CANCELADA; no si ya tiene recepciones)",
+        "x-roles": [
+          "JEFE_COMPRAS",
+          "GERENTE"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OrderIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/OrderOk"
+          },
+          "409": {
+            "$ref": "#/components/responses/InvalidState"
+          }
+        }
+      }
+    },
+    "/purchase-orders/{orderId}/receipts": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/OrderIdPath"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Recepciones"
+        ],
+        "summary": "Recepciones de la orden",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS",
+          "JEFE_BODEGA",
+          "AUDITOR"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Receipt"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Recepciones"
+        ],
+        "summary": "Registrar recepción total o parcial (ENVIADA | RECIBIDA_PARCIAL → RECIBIDA_PARCIAL | RECIBIDA)",
+        "description": "Lote y vencimiento obligatorios en líneas con requiresLot=true.\nGenera la entrada automática en Inventario (2 saltos). Idempotency-Key del cliente se reutiliza\ncomo receiptId; un reintento no duplica la entrada.\n",
+        "x-roles": [
+          "AUX_COMPRAS",
+          "JEFE_BODEGA",
+          "BODEGUERO"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiptInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recepción registrada y entrada creada en Inventario",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/InvalidState"
+          },
+          "422": {
+            "description": "Cantidad recibida supera lo pendiente o falta lote/vencimiento",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/DownstreamError"
+          },
+          "503": {
+            "$ref": "#/components/responses/DownstreamError"
+          }
+        }
+      }
+    },
+    "/supplier-returns": {
+      "get": {
+        "tags": [
+          "Devoluciones a proveedor"
+        ],
+        "summary": "Listar devoluciones a proveedor",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS",
+          "JEFE_BODEGA",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/SupplierReturnStatus"
+            }
+          },
+          {
+            "name": "supplierId",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "lotNumber",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/UpdatedSince"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PageMeta"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/SupplierReturn"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Devoluciones a proveedor"
+        ],
+        "summary": "Solicitar devolución (SOLICITADA)",
+        "x-roles": [
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS",
+          "JEFE_BODEGA"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplierReturnInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/ReturnOk"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "422": {
+            "description": "Lote no corresponde a una recepción de la orden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/supplier-returns/{returnId}": {
+      "get": {
+        "tags": [
+          "Devoluciones a proveedor"
+        ],
+        "summary": "Consultar devolución",
+        "x-roles": [
+          "GERENTE",
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS",
+          "JEFE_BODEGA",
+          "AUDITOR"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReturnIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ReturnOk"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/supplier-returns/{returnId}/send": {
+      "post": {
+        "tags": [
+          "Devoluciones a proveedor"
+        ],
+        "summary": "Enviar al proveedor (SOLICITADA → ENVIADA); registra salida en Inventario",
+        "x-roles": [
+          "JEFE_COMPRAS",
+          "JEFE_BODEGA"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReturnIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ReturnOk"
+          },
+          "409": {
+            "$ref": "#/components/responses/InvalidState"
+          },
+          "502": {
+            "$ref": "#/components/responses/DownstreamError"
+          }
+        }
+      }
+    },
+    "/supplier-returns/{returnId}/accept": {
+      "post": {
+        "tags": [
+          "Devoluciones a proveedor"
+        ],
+        "summary": "Proveedor acepta (ENVIADA → ACEPTADA)",
+        "x-roles": [
+          "JEFE_COMPRAS"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReturnIdPath"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "resolution": {
+                    "type": "string",
+                    "example": "Nota crédito NC-552"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ReturnOk"
+          },
+          "409": {
+            "$ref": "#/components/responses/InvalidState"
+          }
+        }
+      }
+    },
+    "/supplier-returns/{returnId}/reject": {
+      "post": {
+        "tags": [
+          "Devoluciones a proveedor"
+        ],
+        "summary": "Proveedor rechaza (ENVIADA → RECHAZADA)",
+        "x-roles": [
+          "JEFE_COMPRAS"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReturnIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ReturnOk"
+          },
+          "409": {
+            "$ref": "#/components/responses/InvalidState"
+          }
+        }
+      }
+    },
+    "/supplier-returns/{returnId}/evidences": {
+      "post": {
+        "tags": [
+          "Devoluciones a proveedor"
+        ],
+        "summary": "Adjuntar evidencia (foto + observación)",
+        "description": "Archivos en volumen persistente de Kubernetes; la BD guarda la ruta.",
+        "x-roles": [
+          "JEFE_COMPRAS",
+          "AUX_COMPRAS",
+          "JEFE_BODEGA",
+          "BODEGUERO"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReturnIdPath"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "jpg/png, máx 5 MB"
+                  },
+                  "observation": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Adjuntada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evidence"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Archivo demasiado grande"
+          }
+        }
+      }
+    },
+    "/settings/approval-threshold": {
+      "get": {
+        "tags": [
+          "Configuración"
+        ],
+        "summary": "Umbral de aprobación de compras grandes",
+        "x-roles": [
+          "ADMIN",
+          "GERENTE",
+          "JEFE_COMPRAS"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalThreshold"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Configuración"
+        ],
+        "summary": "Actualizar umbral",
+        "x-roles": [
+          "ADMIN",
+          "GERENTE"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalThreshold"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalThreshold"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Sistema"
+        ],
+        "summary": "Health check",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        }
+      },
+      "Size": {
+        "name": "size",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      },
+      "UpdatedSince": {
+        "name": "updatedSince",
+        "in": "query",
+        "description": "Sondeo incremental de Reportes",
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "SupplierIdPath": {
+        "name": "supplierId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "OrderIdPath": {
+        "name": "orderId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "ReturnIdPath": {
+        "name": "returnId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Datos inválidos",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "Rol sin permiso o supera umbral",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "No encontrado",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Duplicado",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "InvalidState": {
+        "description": "Transición de estado no permitida",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "DownstreamError": {
+        "description": "Inventario no disponible; la operación local se revirtió y puede reintentarse con el mismo Idempotency-Key",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "OrderOk": {
+        "description": "OK",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/PurchaseOrder"
+            }
+          }
+        }
+      },
+      "ReturnOk": {
+        "description": "OK",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SupplierReturn"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "INVALID_STATE"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "correlationId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "PageMeta": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "UP",
+              "DOWN"
+            ]
+          },
+          "service": {
+            "type": "string"
+          },
+          "db": {
+            "type": "string",
+            "enum": [
+              "UP",
+              "DOWN"
+            ]
+          },
+          "dependencies": {
+            "type": "object",
+            "properties": {
+              "inventario": {
+                "type": "string",
+                "enum": [
+                  "UP",
+                  "DOWN"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "SupplierInput": {
+        "type": "object",
+        "required": [
+          "nit",
+          "name"
+        ],
+        "properties": {
+          "nit": {
+            "type": "string",
+            "example": "900123456-7"
+          },
+          "name": {
+            "type": "string",
+            "example": "Agroquímicos del Café S.A.S."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "MULTINACIONAL",
+              "IMPORTADOR",
+              "COOPERATIVA",
+              "FABRICANTE_NACIONAL"
+            ]
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "defaultLeadTimeDays": {
+            "type": "integer",
+            "example": 8
+          }
+        }
+      },
+      "Supplier": {
+        "allOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "active": {
+                "type": "boolean"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          {
+            "$ref": "#/components/schemas/SupplierInput"
+          }
+        ]
+      },
+      "SupplierProduct": {
+        "type": "object",
+        "required": [
+          "productId",
+          "unitPrice"
+        ],
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string",
+            "readOnly": true
+          },
+          "productName": {
+            "type": "string",
+            "readOnly": true
+          },
+          "supplierCode": {
+            "type": "string",
+            "description": "Código del producto en el proveedor"
+          },
+          "unitPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "leadTimeDays": {
+            "type": "integer"
+          }
+        }
+      },
+      "PurchaseOrderStatus": {
+        "type": "string",
+        "enum": [
+          "BORRADOR",
+          "APROBADA",
+          "ENVIADA",
+          "RECIBIDA_PARCIAL",
+          "RECIBIDA",
+          "CANCELADA"
+        ]
+      },
+      "PurchaseOrderInput": {
+        "type": "object",
+        "required": [
+          "supplierId",
+          "destinationWarehouseId",
+          "lines"
+        ],
+        "properties": {
+          "supplierId": {
+            "type": "integer"
+          },
+          "destinationWarehouseId": {
+            "type": "string",
+            "example": "CHI"
+          },
+          "expectedDeliveryDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "productId",
+                "quantity",
+                "unitPrice"
+              ],
+              "properties": {
+                "productId": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "number",
+                  "minimum": 0.01
+                },
+                "unitPrice": {
+                  "type": "number",
+                  "format": "double"
+                }
+              }
+            }
+          }
+        }
+      },
+      "PurchaseOrderLine": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "productId": {
+            "type": "string"
+          },
+          "productCode": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "requiresLot": {
+            "type": "boolean"
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "receivedQuantity": {
+            "type": "number"
+          },
+          "pendingQuantity": {
+            "type": "number"
+          },
+          "unitPrice": {
+            "type": "number"
+          },
+          "subtotal": {
+            "type": "number"
+          }
+        }
+      },
+      "PurchaseOrder": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "number": {
+            "type": "string",
+            "example": "OC-2026-0142"
+          },
+          "supplierId": {
+            "type": "integer"
+          },
+          "supplierName": {
+            "type": "string"
+          },
+          "destinationWarehouseId": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PurchaseOrderStatus"
+          },
+          "total": {
+            "type": "number"
+          },
+          "expectedDeliveryDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PurchaseOrderLine"
+            }
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "$ref": "#/components/schemas/PurchaseOrderStatus"
+                },
+                "userId": {
+                  "type": "integer"
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "createdBy": {
+            "type": "integer"
+          },
+          "approvedBy": {
+            "type": "integer",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ReceiptInput": {
+        "type": "object",
+        "required": [
+          "warehouseId",
+          "lines"
+        ],
+        "properties": {
+          "warehouseId": {
+            "type": "string"
+          },
+          "deliveryNote": {
+            "type": "string",
+            "description": "Remisión del proveedor"
+          },
+          "lines": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "lineId",
+                "quantity"
+              ],
+              "properties": {
+                "lineId": {
+                  "type": "integer"
+                },
+                "quantity": {
+                  "type": "number",
+                  "minimum": 0.01
+                },
+                "lotNumber": {
+                  "type": "string",
+                  "description": "Obligatorio si requiresLot"
+                },
+                "expiryDate": {
+                  "type": "string",
+                  "format": "date",
+                  "description": "Obligatorio si requiresLot"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Receipt": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "= Idempotency-Key"
+          },
+          "purchaseOrderId": {
+            "type": "integer"
+          },
+          "warehouseId": {
+            "type": "string"
+          },
+          "deliveryNote": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "lineId": {
+                  "type": "integer"
+                },
+                "productId": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "number"
+                },
+                "lotNumber": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "expiryDate": {
+                  "type": "string",
+                  "format": "date",
+                  "nullable": true
+                }
+              }
+            }
+          },
+          "inventoryMovementIds": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "receivedBy": {
+            "type": "integer"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "onTime": {
+            "type": "boolean",
+            "description": "receivedAt <= expectedDeliveryDate"
+          }
+        }
+      },
+      "SupplierReturnStatus": {
+        "type": "string",
+        "enum": [
+          "SOLICITADA",
+          "ENVIADA",
+          "ACEPTADA",
+          "RECHAZADA"
+        ]
+      },
+      "SupplierReturnInput": {
+        "type": "object",
+        "required": [
+          "supplierId",
+          "purchaseOrderId",
+          "warehouseId",
+          "lines",
+          "reason"
+        ],
+        "properties": {
+          "supplierId": {
+            "type": "integer"
+          },
+          "purchaseOrderId": {
+            "type": "integer"
+          },
+          "warehouseId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "VENCIMIENTO",
+              "DANO",
+              "DEFECTO"
+            ]
+          },
+          "observations": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "productId",
+                "quantity"
+              ],
+              "properties": {
+                "productId": {
+                  "type": "string"
+                },
+                "lotNumber": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "number",
+                  "minimum": 0.01
+                }
+              }
+            }
+          }
+        }
+      },
+      "Evidence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "url": {
+            "type": "string"
+          },
+          "observation": {
+            "type": "string"
+          },
+          "uploadedBy": {
+            "type": "integer"
+          },
+          "uploadedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SupplierReturn": {
+        "allOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "number": {
+                "type": "string",
+                "example": "DEV-P-2026-0031"
+              },
+              "status": {
+                "$ref": "#/components/schemas/SupplierReturnStatus"
+              },
+              "evidences": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Evidence"
+                }
+              },
+              "resolution": {
+                "type": "string",
+                "nullable": true
+              },
+              "inventoryMovementIds": {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                }
+              },
+              "createdBy": {
+                "type": "integer"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          {
+            "$ref": "#/components/schemas/SupplierReturnInput"
+          }
+        ]
+      },
+      "ApprovalThreshold": {
+        "type": "object",
+        "required": [
+          "amount"
+        ],
+        "properties": {
+          "amount": {
+            "type": "number",
+            "format": "double",
+            "example": "20000000, description: COP"
+          }
+        }
+      }
+    }
+  }
+}
