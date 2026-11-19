@@ -33,8 +33,16 @@ class ProxyController extends Controller
         }
         $url = rtrim(config("gateway.services.$service"), '/').'/'.$path;
 
-        // 3. Cabeceras: el usuario sale SOLO del token validado
         $claims = $request->attributes->get('jwt_claims', []);
+        // Logout: el token sigue siendo válido hasta que vence, así que se revoca
+        if ($request->isMethod('POST') && $path === 'auth/logout' && isset($claims['jti'])) {
+            \App\Models\RevokedToken::firstOrCreate(
+                ['jti' => $claims['jti']],
+                ['user_id' => (int) $claims['sub'], 'expires_at' => \Illuminate\Support\Carbon::createFromTimestamp($claims['exp'])],
+            );
+        }
+
+        // 3. Cabeceras: el usuario sale SOLO del token validado
         $headers = [
             'Accept' => $request->header('Accept', 'application/json'),
             'X-Correlation-Id' => $request->attributes->get('correlation_id'),

@@ -38,6 +38,11 @@ class AuthenticateJwt
             return $this->error($request, 'INVALID_TOKEN', 'Token inválido o vencido');
         }
 
+        // 3b. Rechaza los tokens cerrados con logout
+        if (isset($claims['jti']) && \App\Models\RevokedToken::where('jti', $claims['jti'])->exists()) {
+            return $this->error($request, 'TOKEN_REVOKED', 'La sesión fue cerrada');
+        }
+
         // 4. Guarda los datos del usuario para el controlador
         $request->attributes->set('jwt_claims', $claims);
 
