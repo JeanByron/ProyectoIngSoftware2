@@ -1,10 +1,8 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ProxyController;
 
 Route::get('v1/health', fn () => ['status' => 'UP', 'service' => 'gateway']);
 
-// Temporal: muestra lo que el Gateway leyó del token.
-Route::middleware('jwt')->any('v1/{path}', function (\Illuminate\Http\Request $request) {
-    return ['claims' => $request->attributes->get('jwt_claims')];
-})->where('path', '.*');
+Route::middleware('jwt')->any('v1/{path}', ProxyController::class)->where('path', '.*');
