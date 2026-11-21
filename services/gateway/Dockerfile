@@ -1,6 +1,6 @@
 FROM php:8.4-apache
 
-# Extensión para MySQL y reescritura de URLs (es necesaria para las rutas de Laravel)
+
 # Herramientas para que Composer descomprima paquetes, extensión de MySQL y reescritura de URLs
 RUN apt-get update \
     && apt-get install -y --no-install-recommends unzip git \

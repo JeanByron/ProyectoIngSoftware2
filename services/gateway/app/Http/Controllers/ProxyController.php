@@ -19,6 +19,11 @@ class ProxyController extends Controller
     {
         $path = trim($path, '/');
 
+        // 0. Rechaza rutas con ".." (para evitar saltarse el bloqueo de rutas internas)
+        if (str_contains($path, '..')) {
+            return $this->error($request, 400, 'BAD_REQUEST', 'Ruta inválida');
+        }
+
         // 1. Rutas internas: prohibidas desde afuera
         foreach (config('gateway.blocked') as $prefix) {
             if ($this->matches($path, $prefix)) {
