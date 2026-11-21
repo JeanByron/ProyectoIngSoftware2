@@ -1,4 +1,3 @@
-"""Configuración mínima del stub de catalogo: sin BD (datos en memoria), solo API JSON."""
 import os
 
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-insecure-key")
@@ -11,3 +10,5 @@ DATABASES = {}
 USE_TZ = True
 APPEND_SLASH = False
 SERVICE_NAME = "catalogo"
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://127.0.0.1:27017")
+MONGO_DB = os.getenv("MONGO_DB", "catalogo")

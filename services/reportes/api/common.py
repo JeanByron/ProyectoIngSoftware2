@@ -6,6 +6,8 @@ from functools import wraps
 from django.conf import settings
 from django.http import JsonResponse
 
+from .db import client
+
 _idempotency_cache = {}
 
 
@@ -80,6 +82,10 @@ def idempotent(view):
 
 
 def health(request):
+    try:
+        client.admin.command("ping")
+    except Exception:
+        return JsonResponse({"status": "DOWN", "service": settings.SERVICE_NAME, "db": "DOWN"}, status=503)
     return JsonResponse({"status": "UP", "service": settings.SERVICE_NAME, "db": "UP"})
 
 
