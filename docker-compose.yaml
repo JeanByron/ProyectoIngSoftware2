@@ -10,6 +10,7 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
       interval: 5s
       retries: 20
+    networks: [agroinsumos-net]
 
   mysql-inventario:
     image: mysql:8.0
@@ -22,6 +23,7 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
       interval: 5s
       retries: 20
+    networks: [agroinsumos-net]
 
   mysql-compras:
     image: mysql:8.0
@@ -34,40 +36,65 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
       interval: 5s
       retries: 20
+    networks: [agroinsumos-net]
+
+  mysql-gateway:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: gateway
+    volumes:
+      - mysql-gateway:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 5s
+      retries: 20
+    networks: [agroinsumos-net]
 
   mongo:
     image: mongo:7
     volumes:
       - mongo-data:/data/db
+    networks: [agroinsumos-net]
 
   identidad:
     build: ./services/identidad
-    ports:
-      - "8001:8001"
+    # ports
     environment:
       DB_HOST: mysql-identidad
       DB_PORT: "3306"
       DB_NAME: identidad
       DB_USER: root
       DB_PASSWORD: root
+      JWT_SECRET: ${JWT_SECRET}
     depends_on:
       mysql-identidad:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    networks: [agroinsumos-net]
 
   catalogo:
     build: ./services/catalogo
-    ports:
-      - "8002:8002"
+    # ports
     environment:
       MONGO_URI: mongodb://mongo:27017
       MONGO_DB: catalogo
     depends_on:
       - mongo
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    networks: [agroinsumos-net]
 
   inventario:
     build: ./services/inventario
-    ports:
-      - "8003:8003"
+    #
     environment:
       DB_HOST: mysql-inventario
       DB_PORT: "3306"
@@ -77,11 +104,16 @@ services:
     depends_on:
       mysql-inventario:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    networks: [agroinsumos-net]
 
   compras:
     build: ./services/compras
-    ports:
-      - "8004:8004"
+    # ports
     environment:
       DB_HOST: mysql-compras
       DB_PORT: "3306"
@@ -97,11 +129,16 @@ services:
         condition: service_started
       inventario:
         condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    networks: [agroinsumos-net]
 
   reportes:
     build: ./services/reportes
-    ports:
-      - "8005:8005"
+    # ports
     environment:
       MONGO_URI: mongodb://mongo:27017
       MONGO_DB: reportes
@@ -109,9 +146,60 @@ services:
     depends_on:
       - mongo
       - inventario
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    networks: [agroinsumos-net]
+  
+  gateway:
+    build: ./services/gateway
+    ports:
+      - "8000:80"                     # el ÚNICO puerto expuesto hacia afuera
+    environment:
+      APP_KEY: ${GATEWAY_APP_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      DB_CONNECTION: mysql
+      DB_HOST: mysql-gateway
+      DB_PORT: "3306"
+      DB_DATABASE: gateway
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      IDENTIDAD_URL: http://identidad:8001/api/v1
+      CATALOGO_URL: http://catalogo:8002/api/v1
+      INVENTARIO_URL: http://inventario:8003/api/v1
+      COMPRAS_URL: http://compras:8004/api/v1
+      REPORTES_URL: http://reportes:8005/api/v1
+    depends_on:
+      mysql-gateway:
+        condition: service_healthy
+      identidad:
+        condition: service_started
+      catalogo:
+        condition: service_started
+      inventario:
+        condition: service_started
+      compras:
+        condition: service_started
+      reportes:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    networks: [agroinsumos-net]
+
+
 
 volumes:
   mysql-identidad:
   mysql-inventario:
   mysql-compras:
   mongo-data:
+  mysql-gateway:
+
+networks:
+  agroinsumos-net:
+    driver: bridge
