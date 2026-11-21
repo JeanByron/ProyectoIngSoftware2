@@ -1,0 +1,117 @@
+services:
+  mysql-identidad:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: identidad
+    volumes:
+      - mysql-identidad:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 5s
+      retries: 20
+
+  mysql-inventario:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: inventario
+    volumes:
+      - mysql-inventario:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 5s
+      retries: 20
+
+  mysql-compras:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: compras
+    volumes:
+      - mysql-compras:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 5s
+      retries: 20
+
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo-data:/data/db
+
+  identidad:
+    build: ./services/identidad
+    ports:
+      - "8001:8001"
+    environment:
+      DB_HOST: mysql-identidad
+      DB_PORT: "3306"
+      DB_NAME: identidad
+      DB_USER: root
+      DB_PASSWORD: root
+    depends_on:
+      mysql-identidad:
+        condition: service_healthy
+
+  catalogo:
+    build: ./services/catalogo
+    ports:
+      - "8002:8002"
+    environment:
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DB: catalogo
+    depends_on:
+      - mongo
+
+  inventario:
+    build: ./services/inventario
+    ports:
+      - "8003:8003"
+    environment:
+      DB_HOST: mysql-inventario
+      DB_PORT: "3306"
+      DB_NAME: inventario
+      DB_USER: root
+      DB_PASSWORD: root
+    depends_on:
+      mysql-inventario:
+        condition: service_healthy
+
+  compras:
+    build: ./services/compras
+    ports:
+      - "8004:8004"
+    environment:
+      DB_HOST: mysql-compras
+      DB_PORT: "3306"
+      DB_NAME: compras
+      DB_USER: root
+      DB_PASSWORD: root
+      CATALOGO_URL: http://catalogo:8002/api/v1
+      INVENTARIO_URL: http://inventario:8003/api/v1
+    depends_on:
+      mysql-compras:
+        condition: service_healthy
+      catalogo:
+        condition: service_started
+      inventario:
+        condition: service_started
+
+  reportes:
+    build: ./services/reportes
+    ports:
+      - "8005:8005"
+    environment:
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DB: reportes
+      INVENTARIO_URL: http://inventario:8003/api/v1
+    depends_on:
+      - mongo
+      - inventario
+
+volumes:
+  mysql-identidad:
+  mysql-inventario:
+  mysql-compras:
+  mongo-data:
