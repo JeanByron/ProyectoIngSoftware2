@@ -4,6 +4,7 @@ import uuid
 from functools import wraps
 
 from django.conf import settings
+from django.db import connection
 from django.http import JsonResponse
 
 _idempotency_cache = {}
@@ -80,6 +81,10 @@ def idempotent(view):
 
 
 def health(request):
+    try:
+        connection.ensure_connection()
+    except Exception:
+        return JsonResponse({"status": "DOWN", "service": settings.SERVICE_NAME, "db": "DOWN"}, status=503)
     return JsonResponse({"status": "UP", "service": settings.SERVICE_NAME, "db": "UP"})
 
 

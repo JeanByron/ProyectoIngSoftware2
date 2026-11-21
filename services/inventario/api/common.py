@@ -4,9 +4,10 @@ import uuid
 from functools import wraps
 
 from django.conf import settings
+from django.db import connection
 from django.http import JsonResponse
 
-_idempotency_cache = {}
+from .models import IdempotencyRecord
 
 
 class CorrelationIdMiddleware:
@@ -68,18 +69,24 @@ def idempotent(view):
         key = request.headers.get("Idempotency-Key")
         if not key:
             return view(request, *args, **kwargs)
-        cache_key = (request.path, key)
-        if cache_key in _idempotency_cache:
-            status, content = _idempotency_cache[cache_key]
-            return JsonResponse(json.loads(content), status=status, safe=False)
+        saved = IdempotencyRecord.objects.filter(path=request.path, key=key).first()
+        if saved:
+            return JsonResponse(json.loads(saved.content), status=saved.status, safe=False)
         response = view(request, *args, **kwargs)
         if response.status_code < 500:
-            _idempotency_cache[cache_key] = (response.status_code, response.content)
+            IdempotencyRecord.objects.get_or_create(
+                path=request.path, key=key,
+                defaults={"status": response.status_code, "content": response.content.decode()},
+            )
         return response
     return wrapper
 
 
 def health(request):
+    try:
+        connection.ensure_connection()
+    except Exception:
+        return JsonResponse({"status": "DOWN", "service": settings.SERVICE_NAME, "db": "DOWN"}, status=503)
     return JsonResponse({"status": "UP", "service": settings.SERVICE_NAME, "db": "UP"})
 
 
