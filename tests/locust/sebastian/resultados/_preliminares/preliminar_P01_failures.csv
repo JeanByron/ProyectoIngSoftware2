@@ -1,0 +1,2 @@
+Method,Name,Error,Occurrences,First Seen,Last Seen
+POST,Login,"CatchResponseError('esperado 200, recibido 503')",29,2026-11-22T00:55:15Z,2026-11-22T00:55:24Z

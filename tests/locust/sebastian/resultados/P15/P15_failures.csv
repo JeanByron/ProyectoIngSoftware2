@@ -1,0 +1,3 @@
+Method,Name,Error,Occurrences,First Seen,Last Seen
+GET,Listar productos,"CatchResponseError('esperado 200, recibido 503')",368,2026-11-22T02:58:46Z,2026-11-22T02:59:47Z
+GET,Buscar productos,"CatchResponseError('esperado 200, recibido 503')",177,2026-11-22T02:58:46Z,2026-11-22T02:59:46Z
