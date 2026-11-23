@@ -69,7 +69,6 @@ def dashboard(request):
         "unitsByWarehouse": [{"warehouseId": w, "units": q} for w, q in sorted(by_wh.items())],
         "stockOutCount": sum(1 for r in rows if r["quantity"] <= 0),
         "lotsTracked": sum(1 for r in rows if r["lotNumber"]),
-        "note": "Stub: valorización, rotación y OC pendientes se calcularán al sincronizar Catálogo y Compras",
     })
 
 
